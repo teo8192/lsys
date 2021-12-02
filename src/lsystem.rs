@@ -6,7 +6,7 @@ use nom::{
     IResult,
 };
 
-type Instructions = Vec<Instruction>;
+pub type Instructions = Vec<Instruction>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
@@ -128,7 +128,7 @@ impl LSystem {
         Ok(lsystem)
     }
 
-    pub fn step(&mut self) {
+    fn step(&mut self) {
         self.word = self
             .word
             .iter()
