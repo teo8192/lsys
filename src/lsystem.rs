@@ -8,8 +8,8 @@ use nom::{
 
 type Instructions = Vec<Instruction>;
 
-#[derive(Debug, PartialEq)]
-enum Instruction {
+#[derive(Debug, PartialEq, Clone)]
+pub enum Instruction {
     Symbol(char),
     Branch(Instructions),
 }
@@ -101,7 +101,8 @@ fn rule(input: &str) -> IResult<&str, Rule> {
 
 #[derive(Debug, PartialEq)]
 pub struct LSystem {
-    instr: Instructions,
+    word: Instructions,
+    axiom: Instructions,
     rules: Vec<Rule>,
 }
 
@@ -111,13 +112,61 @@ fn lsystem(input: &str) -> IResult<&str, LSystem> {
     let rules = it.collect();
     let (input, ()) = it.finish()?;
 
-    Ok((input, LSystem { instr, rules }))
+    Ok((
+        input,
+        LSystem {
+            word: instr.clone(),
+            axiom: instr,
+            rules,
+        },
+    ))
 }
 
 impl LSystem {
     pub fn from_str(input: &str) -> Result<Self, Box<dyn std::error::Error + '_>> {
         let (_, lsystem) = lsystem(input)?;
         Ok(lsystem)
+    }
+
+    pub fn step(&mut self) {
+        self.word = self
+            .word
+            .iter()
+            .flat_map(|instr| instr.apply(&self.rules))
+            .collect();
+    }
+
+    pub fn reset(&mut self) {
+        self.word = self.axiom.clone();
+    }
+}
+
+impl Instruction {
+    fn apply(&self, rules: &[Rule]) -> Instructions {
+        for rule in rules {
+            if &rule.0 == self {
+                return rule.1.clone();
+            }
+        }
+
+        use Instruction::*;
+        match self {
+            Symbol(c) => vec![Symbol(*c)],
+            Branch(instrs) => vec![Branch(
+                instrs.iter().flat_map(|instr| instr.apply(rules)).collect(),
+            )],
+        }
+    }
+}
+
+impl Iterator for LSystem {
+    type Item = Instructions;
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = self.word.clone();
+
+        self.step();
+
+        Some(res)
     }
 }
 
