@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while_m_n},
-    combinator::{iterator, map_res},
+    combinator::{iterator, map_res, opt},
     error::{Error, ErrorKind},
     IResult,
 };
@@ -30,6 +30,8 @@ fn to_symbol(input: &str) -> Result<Instruction, Box<dyn std::error::Error>> {
         Err(format!("{} is branch symbol", input).into())
     } else if c.is_whitespace() {
         Err(format!("'{}' is whitespace", input).into())
+    } else if c == ';' {
+        Err(format!("'{}' is terminator", input).into())
     } else {
         Ok(Instruction::Symbol(c))
     }
@@ -68,9 +70,14 @@ fn branch(input: &str) -> IResult<&str, Instructions> {
 }
 
 fn instructions(input: &str) -> IResult<&str, Instructions> {
-    let (input, ()) = remove_whitespace(input)?;
+    let (input, _) = opt(remove_whitespace)(input)?;
 
-    let mut it = iterator(input, alt((simple_instructions, branch)));
+    let mut it = iterator(
+        input,
+        alt((simple_instructions, branch, |input| {
+            remove_whitespace(input).map(|(input, _)| (input, vec![]))
+        })),
+    );
 
     let parsed = it.flatten().collect();
     let (input, ()) = it.finish()?;
@@ -80,20 +87,26 @@ fn instructions(input: &str) -> IResult<&str, Instructions> {
 
 fn remove_whitespace(input: &str) -> IResult<&str, ()> {
     let mut it = iterator(input, alt((tag(" "), tag("\n"), tag("\t"))));
-    let _: Vec<_> = it.collect();
-
-    it.finish()
+    let l: Vec<_> = it.collect();
+    if l.is_empty() {
+        Err(nom::Err::Error(Error {
+            input,
+            code: ErrorKind::Fail,
+        }))
+    } else {
+        it.finish()
+    }
 }
 
 type Rule = (Instruction, Instructions);
 
 fn rule(input: &str) -> IResult<&str, Rule> {
-    let (input, ()) = remove_whitespace(input)?;
+    let (input, _) = opt(remove_whitespace)(input)?;
 
     let (input, from) = single_instruction(input)?;
-    let (input, ()) = remove_whitespace(input)?;
+    let (input, _) = opt(remove_whitespace)(input)?;
     let (input, _) = tag("->")(input)?;
-    let (input, ()) = remove_whitespace(input)?;
+    let (input, _) = opt(remove_whitespace)(input)?;
     let (input, target) = instructions(input)?;
 
     Ok((input, (from, target)))
@@ -106,9 +119,21 @@ pub struct LSystem {
     rules: Vec<Rule>,
 }
 
+fn terminate<F, G>(f: F) -> impl Fn(&str) -> IResult<&str, G>
+where
+    F: Fn(&str) -> IResult<&str, G>,
+{
+    move |input| {
+        let (input, res) = f(input)?;
+        let (input, _) = opt(remove_whitespace)(input)?;
+        let (input, _) = tag(";")(input)?;
+        Ok((input, res))
+    }
+}
+
 fn lsystem(input: &str) -> IResult<&str, LSystem> {
-    let (input, instr) = instructions(input)?;
-    let mut it = iterator(input, rule);
+    let (input, instr) = terminate(instructions)(input)?;
+    let mut it = iterator(input, terminate(rule));
     let rules = it.collect();
     let (input, ()) = it.finish()?;
 

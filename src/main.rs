@@ -30,14 +30,17 @@ impl Graphics<()> for Canvas {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut lsys = LSystem::from_str("++++F F->G[+F][-F]-GF G->GG")?;
+    let mut lsys = LSystem::from_str("++++F; F->G[+F][-F]-GF; G->GG;")?;
+    // let mut lsys = LSystem::from_str("F F->F+G G->F-G")?;
 
-    let iters = 9;
+    // let iters = 12;
+    let iters = 7;
 
     let word = lsys.nth(iters).unwrap();
 
     let turtle = TurtleConfig::default()
         .stepsize(75.0 * (2f32.powf(-(iters as f32))))
+        // .stepsize(2.0)
         .delta_ang(std::f32::consts::PI / 6.0)
         .draw_forward("FG");
 
