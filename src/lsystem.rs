@@ -136,6 +136,7 @@ impl LSystem {
             .collect();
     }
 
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.word = self.axiom.clone();
     }
